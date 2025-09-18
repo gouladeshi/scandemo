@@ -1,0 +1,32 @@
+[Unit]
+Description=Scan Demo QT5 + Rust Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=scanuser
+Group=scanuser
+WorkingDirectory=/opt/scan-demo
+ExecStart=/opt/scan-demo/target/release/scan_demo
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scan-demo
+
+# 环境变量
+Environment=RUST_LOG=info,sqlx=warn
+Environment=DATABASE_URL=sqlite:scan_demo.db
+Environment=EXTERNAL_API_URL=https://httpbin.org/post
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/scan-demo
+
+[Install]
+WantedBy=multi-user.target

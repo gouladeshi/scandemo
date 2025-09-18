@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  scan-demo:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./scan_demo.db:/app/scan_demo.db
+      - ./logs:/app/logs
+    environment:
+      - RUST_LOG=info,sqlx=warn
+      - DATABASE_URL=sqlite:scan_demo.db
+      - EXTERNAL_API_URL=https://httpbin.org/post
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 可选：添加数据库服务
+  # postgres:
+  #   image: postgres:13
+  #   environment:
+  #     POSTGRES_DB: scan_demo
+  #     POSTGRES_USER: scanuser
+  #     POSTGRES_PASSWORD: password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+# volumes:
+#   postgres_data:

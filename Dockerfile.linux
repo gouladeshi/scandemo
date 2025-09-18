@@ -1,0 +1,90 @@
+# ============================================
+# Rust + Qt 扫码生产看板 Linux Docker 编译环境
+# ============================================
+
+FROM ubuntu:22.04
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:$PATH
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    pkg-config \
+    curl \
+    wget \
+    git \
+    qtbase5-dev \
+    qtchooser \
+    qt5-qmake \
+    qtbase5-dev-tools \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && rustup default stable \
+    && rustup update
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 复制项目文件
+COPY . .
+
+# 编译 Rust 后端
+RUN cargo build --release
+
+# 编译 Qt 前端
+RUN cd qt_frontend && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# 创建启动脚本
+RUN echo '#!/bin/bash\n\
+echo "启动 Rust 后端服务..."\n\
+cd /workspace\n\
+./target/release/scan_demo\n\
+' > /workspace/start_backend.sh && \
+    chmod +x /workspace/start_backend.sh
+
+RUN echo '#!/bin/bash\n\
+echo "启动 Qt 前端应用..."\n\
+cd /workspace\n\
+export API_BASE_URL=${API_BASE_URL:-"http://localhost:3000"}\n\
+./qt_frontend/build/bin/ScanDemoFrontend\n\
+' > /workspace/start_frontend.sh && \
+    chmod +x /workspace/start_frontend.sh
+
+RUN echo '#!/bin/bash\n\
+echo "启动完整的扫码生产看板应用..."\n\
+\n\
+# 检查后端是否已运行\n\
+if pgrep -f "scan_demo" > /dev/null; then\n\
+    echo "后端服务已在运行"\n\
+else\n\
+    echo "启动后端服务..."\n\
+    cd /workspace\n\
+    nohup ./target/release/scan_demo > backend.log 2>&1 &\n\
+    sleep 2\n\
+fi\n\
+\n\
+# 启动前端\n\
+echo "启动前端应用..."\n\
+export API_BASE_URL=${API_BASE_URL:-"http://localhost:3000"}\n\
+./qt_frontend/build/bin/ScanDemoFrontend\n\
+' > /workspace/start_complete.sh && \
+    chmod +x /workspace/start_complete.sh
+
+# 暴露端口
+EXPOSE 3000
+
+# 默认命令
+CMD ["./start_complete.sh"]
