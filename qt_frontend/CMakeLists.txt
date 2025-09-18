@@ -29,13 +29,9 @@ set(HEADERS
     apiclient.h
 )
 
-# UI 文件
-set(UI_FILES
-    mainwindow.ui
-)
 
-# 创建可执行文件
-add_executable(ScanDemoFrontend ${SOURCES} ${HEADERS} ${UI_FILES})
+# 创建可执行文件（当前项目未使用 .ui 文件）
+add_executable(ScanDemoFrontend ${SOURCES} ${HEADERS})
 
 # 链接 Qt5 库
 target_link_libraries(ScanDemoFrontend
