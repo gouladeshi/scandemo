@@ -1,0 +1,50 @@
+name: Build Linux Binaries (Rust + Qt)
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config curl
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustc --version && cargo --version
+      - run: sudo apt-get install -y qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools
+      - run: cargo build --release
+      - run: |
+          cd qt_frontend
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - run: |
+          set -e
+          BUNDLE_DIR="scan-demo-linux-${{ github.sha }}"
+          mkdir -p "$BUNDLE_DIR"
+          cp target/release/scan_demo "$BUNDLE_DIR/" || true
+          if [ -f qt_frontend/build/bin/ScanDemoFrontend ]; then
+            cp qt_frontend/build/bin/ScanDemoFrontend "$BUNDLE_DIR/"
+          fi
+          [ -d static ] && cp -r static "$BUNDLE_DIR/"
+          [ -d templates ] && cp -r templates "$BUNDLE_DIR/"
+          cat > "$BUNDLE_DIR/start_backend.sh" << 'EOF'
+          #!/bin/bash
+          set -e
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          "$DIR/scan_demo"
+          EOF
+          chmod +x "$BUNDLE_DIR/start_backend.sh"
+          cat > "$BUNDLE_DIR/start_frontend.sh" << 'EOF'
+          #!/bin/bash
+          set -e
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export API_BASE_URL=${API_BASE_URL:-"http://localhost:3000"}
+          "$DIR/ScanDemoFrontend"
+          EOF
+          chmod +x "$BUNDLE_DIR/start_frontend.sh"
+          tar -czf "$BUNDLE_DIR.tar.gz" "$BUNDLE_DIR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-demo-linux
+          path: scan-demo-linux-*.tar.gz
